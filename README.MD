@@ -36,3 +36,6 @@ Alt-Svc: h3=":443"; ma=86400,h3-29=":443"; ma=86400,h3-Q050=":443"; ma=86400,qui
 [+] Valid Until		: 20/01/2026
 [+] Page Title		: Example Domain
 ```
+
+## Credits
+This is largely copied from https://github.com/Yeeb1/MagicBOFs with some massage to make it easier to use as "curl", with support for OC2.
