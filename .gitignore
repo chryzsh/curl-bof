@@ -1,5 +1,5 @@
 # Build artifacts
-*.o
+dist/
 
 # IDE files
 .vscode/
