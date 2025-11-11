@@ -6,7 +6,7 @@ from outflank_stage1.task.enums import BOFArgumentEncoding
 
 class CurlBOF(BaseBOFTask):
     def __init__(self):
-        super().__init__("curl")
+        super().__init__("curl", base_binary_name="curl", base_binary_path="dist")
 
         self.parser.description = "Retrieve TLS certificate, response headers, and page title from a given URL (curl)."
 
