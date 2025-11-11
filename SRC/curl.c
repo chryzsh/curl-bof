@@ -11,7 +11,7 @@ __declspec(naked) void ___chkstk_ms(void)
 #include <winhttp.h>
 #include <wincrypt.h>
 #include "beacon.h"
-#include "curl-bof.h"
+#include "curl.h"
 
 
 // Default User-Agent (Microsoft Edge)
