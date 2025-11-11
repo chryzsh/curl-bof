@@ -12,12 +12,12 @@ curl-bof is a basic implementation of `curl` designed to peek at remote services
 
 ### **Basic Usage**
 ```plaintext
-beacon> curl-bof <finger|print> <url> [--ua "Custom User-Agent"]
+beacon> curl <finger|print> <url> [--ua "Custom User-Agent"]
 ```
 
 Finger Output:
 ```plaintext
-beacon> curl-bof finger https://example.com
+beacon> curl finger https://example.com
 
 [+] Response Headers:
 HTTP/1.1 200 OK

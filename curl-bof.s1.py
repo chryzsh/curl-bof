@@ -6,7 +6,7 @@ from outflank_stage1.task.enums import BOFArgumentEncoding
 
 class CurlBOF(BaseBOFTask):
     def __init__(self):
-        super().__init__("curl-bof")
+        super().__init__("curl")
 
         self.parser.description = "Retrieve TLS certificate, response headers, and page title from a given URL (curl)."
 
@@ -29,14 +29,14 @@ class CurlBOF(BaseBOFTask):
         )
 
         self.parser.epilog = (
-            "curl-bof is a BOF that functions like a basic curl utility.\n\n"
+            "curl is a BOF that functions like a basic curl utility.\n\n"
             "Example usage:\n"
             "  - Retrieve headers, TLS certificate, and page title:\n"
-            "    curl-bof finger https://example.com\n"
+            "    curl finger https://example.com\n"
             "  - Fetch and print the raw page content:\n"
-            "    curl-bof print https://example.com\n"
+            "    curl print https://example.com\n"
             "  - Use a custom User-Agent:\n"
-            "    curl-bof finger https://example.com --ua \"Custom User Agent\""
+            "    curl finger https://example.com --ua \"Custom User Agent\""
         )
 
     def _encode_arguments_bof(
@@ -57,7 +57,7 @@ class CurlBOF(BaseBOFTask):
         
         # Add a simple message about what we're doing
         self.append_response(
-            f"curl-bof - Executing {parser_arguments.command} operation on {parser_arguments.url}...\n"
+            f"curl - Executing {parser_arguments.command} operation on {parser_arguments.url}...\n"
         )
         
         # Execute the BOF
