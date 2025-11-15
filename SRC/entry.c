@@ -24,8 +24,9 @@ void remove_quotes(wchar_t *str) {
     if (!str) return;
     size_t len = MSVCRT$wcslen(str);
     if (len > 1 && str[0] == L'"' && str[len - 1] == L'"') {
-        str[len - 1] = L'\0'; 
-        MSVCRT$memmove(str, str + 1, len * sizeof(wchar_t)); 
+        str[len - 1] = L'\0';
+        // Move (len - 1) characters to avoid reading past buffer
+        MSVCRT$memmove(str, str + 1, (len - 1) * sizeof(wchar_t));
     }
 }
 
@@ -72,11 +73,16 @@ void extract_title(const char *html, formatp *fmt) {
         return;
     }
     char title[256];
-    size_t titleLen = end - start;
-    if (titleLen >= sizeof(title))
-        titleLen = sizeof(title) - 1;
-    MSVCRT$memcpy(title, start, titleLen);
-    title[titleLen] = '\0';
+    // Validate buffer size before calculating length to prevent overflow
+    if (end < start || (size_t)(end - start) >= sizeof(title)) {
+        size_t titleLen = sizeof(title) - 1;
+        MSVCRT$memcpy(title, start, titleLen);
+        title[titleLen] = '\0';
+    } else {
+        size_t titleLen = end - start;
+        MSVCRT$memcpy(title, start, titleLen);
+        title[titleLen] = '\0';
+    }
     BeaconFormatPrintf(fmt, "[+] Page Title\t\t: %s\n", title);
 }
 
@@ -117,7 +123,7 @@ void doFinger(const wchar_t *url, const wchar_t *userAgent) {
 
     // Parse URL components.
     URL_COMPONENTS urlComp;
-    ZeroMemory(&urlComp, sizeof(urlComp));
+    MSVCRT$memset(&urlComp, 0, sizeof(urlComp));
     urlComp.dwStructSize = sizeof(urlComp);
     wchar_t hostName[256] = {0};
     wchar_t urlPath[512] = {0};
@@ -166,7 +172,12 @@ void doFinger(const wchar_t *url, const wchar_t *userAgent) {
     // Retrieve response headers dynamically
     {
         DWORD headerSize = 0;
-        WINHTTP$WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_RAW_HEADERS_CRLF, NULL, NULL, &headerSize, NULL);
+        BOOL result = WINHTTP$WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_RAW_HEADERS_CRLF, NULL, NULL, &headerSize, NULL);
+
+        if (!result && KERNEL32$GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+            BeaconFormatPrintf(&fmt, "[-] Failed to query header size (Error %lu).\n", KERNEL32$GetLastError());
+            goto cleanup;
+        }
 
         if (headerSize == 0) {
             BeaconFormatPrintf(&fmt, "[-] Headers size is unavailable.\n");
@@ -249,7 +260,7 @@ void doPrint(const wchar_t *url, const wchar_t *userAgent) {
     wchar_t hostName[256] = {0}, urlPath[512] = {0};
 
 
-    ZeroMemory(&urlComp, sizeof(urlComp));
+    MSVCRT$memset(&urlComp, 0, sizeof(urlComp));
     urlComp.dwStructSize = sizeof(urlComp);
     urlComp.lpszHostName = hostName;
     urlComp.dwHostNameLength = 256;
@@ -328,39 +339,49 @@ void go(char *args, int length) {
     wchar_t *cmd = (wchar_t *)BeaconDataExtract(&parser, NULL);
     wchar_t *urlArg = (wchar_t *)BeaconDataExtract(&parser, NULL);
     wchar_t *uaArg = NULL;
+    wchar_t *uaArgAllocated = NULL;  // Track if we allocated memory
     size_t uaLength = 0;
     wchar_t *temp = NULL;
+    static wchar_t wDefaultUA[512];
 
     // Rebuild the user-agent from remaining arguments
     while ((temp = (wchar_t *)BeaconDataExtract(&parser, NULL)) != NULL) {
         size_t tempLen = MSVCRT$wcslen(temp);
-        if (!uaArg) {
-            uaArg = (wchar_t *)MSVCRT$calloc(tempLen + 1, sizeof(wchar_t));
+        if (!uaArgAllocated) {
+            uaArgAllocated = (wchar_t *)MSVCRT$calloc(tempLen + 1, sizeof(wchar_t));
+            if (!uaArgAllocated) {
+                BeaconPrintf(CALLBACK_ERROR, "[-] Memory allocation failed for user-agent");
+                return;
+            }
+            uaArg = uaArgAllocated;
         } else {
-            uaArg = (wchar_t *)MSVCRT$realloc(uaArg, (uaLength + tempLen + 2) * sizeof(wchar_t));
-            MSVCRT$wcscat(uaArg, L" "); 
+            wchar_t *newUaArg = (wchar_t *)MSVCRT$realloc(uaArgAllocated, (uaLength + tempLen + 2) * sizeof(wchar_t));
+            if (!newUaArg) {
+                MSVCRT$free(uaArgAllocated);
+                BeaconPrintf(CALLBACK_ERROR, "[-] Memory reallocation failed for user-agent");
+                return;
+            }
+            uaArgAllocated = newUaArg;
+            uaArg = uaArgAllocated;
+            MSVCRT$wcscat(uaArg, L" ");
         }
-        MSVCRT$wcscat(uaArg, temp); 
+        MSVCRT$wcscat(uaArg, temp);
         uaLength += tempLen + 1;
     }
 
-    // Defaulting if BOF is used without cna
-    if (!uaArg) {
-        static wchar_t wDefaultUA[256];
-        convertToWideChar(DEFAULT_USER_AGENT, wDefaultUA, 256);
-        uaArg = wDefaultUA;
-    }
-
     if (!cmd || !urlArg) {
+        if (uaArgAllocated) MSVCRT$free(uaArgAllocated);
         BeaconPrintf(CALLBACK_ERROR, "[-] Missing required arguments: <command> <url> [user-agent]");
         return;
     }
 
     // Remove surrounding quotes from URL and User-Agent (internally)
     remove_quotes(urlArg);
-    remove_quotes(uaArg);
+    if (uaArg) {
+        remove_quotes(uaArg);
+    }
 
-    static wchar_t wDefaultUA[512]; 
+    // Use default user-agent if not provided or empty
     if (!uaArg || MSVCRT$wcslen(uaArg) == 0) {
         convertToWideChar(DEFAULT_USER_AGENT, wDefaultUA, 512);
         uaArg = wDefaultUA;
@@ -372,5 +393,10 @@ void go(char *args, int length) {
         doPrint(urlArg, uaArg);
     } else {
         BeaconPrintf(CALLBACK_ERROR, "[-] Unknown command: %ls", cmd);
+    }
+
+    // Free dynamically allocated user-agent string
+    if (uaArgAllocated) {
+        MSVCRT$free(uaArgAllocated);
     }
 }
